@@ -31,10 +31,9 @@
   The ledger stays append-only on every backend — 'who booked/registered/
   disputed what, on what license/source basis' is always a query over an
   immutable log."
-  (:require #?(:clj  [clojure.edn :as edn]
-               :cljs [cljs.reader :as edn])
-            [clojure.string :as str]
-            [langchain.db :as d]))
+  (:require [clojure.string :as str]
+            [langchain.db :as d]
+            [langchain-store.core :as ls]))
 
 (defprotocol Store
   (property [s id])
@@ -140,9 +139,6 @@
    :contract/tenant {:db/unique :db.unique/identity}
    :ledger/seq      {:db/unique :db.unique/identity}})
 
-(defn- enc [v] (pr-str v))
-(defn- dec* [s] (when s (edn/read-string s)))
-
 (defn- property->tx [{:keys [id name property-type jurisdiction capacity-total
                              license-status license-basis safety-cert-expiry]}]
   (cond-> {:property/id id}
@@ -151,14 +147,14 @@
     jurisdiction      (assoc :property/jurisdiction jurisdiction)
     capacity-total    (assoc :property/capacity-total capacity-total)
     license-status    (assoc :property/license-status license-status)
-    license-basis     (assoc :property/license-basis (enc license-basis))
+    license-basis     (assoc :property/license-basis (ls/enc license-basis))
     safety-cert-expiry (assoc :property/safety-cert-expiry safety-cert-expiry)))
 
 (defn- pull->property [m]
   (when (:property/id m)
     {:id (:property/id m) :name (:property/name m) :property-type (:property/type m)
      :jurisdiction (:property/jurisdiction m) :capacity-total (:property/capacity-total m)
-     :license-status (:property/license-status m) :license-basis (dec* (:property/license-basis m))
+     :license-status (:property/license-status m) :license-basis (ls/dec* (:property/license-basis m))
      :safety-cert-expiry (:property/safety-cert-expiry m)}))
 
 (def ^:private property-pull
@@ -168,13 +164,13 @@
 (defn- booking->tx [{:keys [id property-id guest-id check-in check-out guests-count status source]}]
   {:booking/id id :booking/property-id property-id :booking/guest-id guest-id
    :booking/check-in check-in :booking/check-out check-out :booking/guests-count guests-count
-   :booking/status status :booking/source (enc source)})
+   :booking/status status :booking/source (ls/enc source)})
 
 (defn- pull->booking [m]
   (when (:booking/id m)
     {:id (:booking/id m) :property-id (:booking/property-id m) :guest-id (:booking/guest-id m)
      :check-in (:booking/check-in m) :check-out (:booking/check-out m)
-     :guests-count (:booking/guests-count m) :status (:booking/status m) :source (dec* (:booking/source m))}))
+     :guests-count (:booking/guests-count m) :status (:booking/status m) :source (ls/dec* (:booking/source m))}))
 
 (def ^:private booking-pull
   [:booking/id :booking/property-id :booking/guest-id :booking/check-in :booking/check-out
@@ -230,7 +226,7 @@
   (ledger [_]
     (->> (d/q '[:find ?s ?f :where [?e :ledger/seq ?s] [?e :ledger/fact ?f]] (d/db conn))
          (sort-by first)
-         (mapv (comp dec* second))))
+         (mapv (comp ls/dec* second))))
   (commit-record! [s {:keys [effect path value]}]
     (case effect
       :property-upsert (d/transact! conn [(property->tx (merge (property s (:id value)) value))])
@@ -240,7 +236,7 @@
       nil)
     s)
   (append-ledger! [s fact]
-    (d/transact! conn [{:ledger/seq (count (ledger s)) :ledger/fact (enc fact)}])
+    (d/transact! conn [{:ledger/seq (count (ledger s)) :ledger/fact (ls/enc fact)}])
     fact)
   (with-properties [s ps]
     (when (seq ps) (d/transact! conn (mapv property->tx (vals ps)))) s)

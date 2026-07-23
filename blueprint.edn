@@ -1,0 +1,24 @@
+[{:itonami.blueprint/id "cloud-itonami-isic-5590"
+  :itonami.blueprint/name "Other Accommodation — Hostel/Guesthouse/Dormitory Property & Booking Coordination"
+  :itonami.blueprint/isic-rev4 "5590"
+  :itonami.blueprint/domain :accommodation/other-accommodation
+  :itonami.blueprint/license "AGPL-3.0-or-later"
+  :itonami.blueprint/social-impact [:accommodation-access :fire-safety-compliance :capacity-integrity]
+  :itonami.blueprint/governor :stay-governor
+  :itonami.blueprint/robotics false
+  :itonami.blueprint/required-technologies [:identity :forms :dmn :bpmn :audit-ledger]
+  :itonami.blueprint/status :public-oss
+  :itonami.blueprint/maturity :implemented
+  :itonami.blueprint/implemented-slice
+  "StayBooking-LLM ⊣ StayGovernor, langgraph-clj StateGraph
+  (langgraph.graph, stay.operation/build), append-only audit ledger
+  (stay.store/ledger + append-ledger!, DatomicStore via
+  kotoba-lang/langchain-store + MemStore). Registers properties,
+  confirms bookings, and serves governed occupancy reports. Eight
+  governor checks (rbac, capacity-overbooking-gate, license-lapsed-gate,
+  source-provenance-gate, and four more, five HARD + three SOFT/
+  always-escalate). This repo had no blueprint.edn at all despite a
+  fully-built actor (real StateGraph, real governor, real ledger, real
+  CI) -- this is the first blueprint.edn for it, describing only what
+  the existing code genuinely implements."
+  :db/id -1}]
