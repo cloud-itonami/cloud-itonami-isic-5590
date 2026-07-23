@@ -44,6 +44,10 @@ jobs:
         with:
           repository: kotoba-lang/langchain
           path: orgs/kotoba-lang/langchain
+      - uses: actions/checkout@v4
+        with:
+          repository: kotoba-lang/langchain-store
+          path: orgs/kotoba-lang/langchain-store
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "21" }
       - uses: DeLaGuardo/setup-clojure@13.0
