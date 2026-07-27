@@ -175,3 +175,52 @@
         (is (= "JPY" (:rate/currency plan)))
         (is (= {5 11500 6 11500} (:rate/weekday-bp plan))
             "an integer-keyed map must not be stringified by the blob codec")))))
+
+;; ---------------------------------------------------------------------------
+;; The capacity gate must not treat "cannot determine" as "safe"
+;; ---------------------------------------------------------------------------
+
+(deftest a-booking-with-no-guest-count-no-longer-clears-the-capacity-gate
+  (testing "`(or guests-count 0)` meant an unstated head count contributed ZERO
+            to the occupancy and therefore always cleared the gate"
+    (let [db (store/seed-db)
+          p (llm/infer db (assoc (clean-booking) :op :booking/place :guests-count nil))
+          v (policy/check {:op :booking/place} coordinator p db)]
+      (is (contains? (rules v) :capacity-overbooking-gate))
+      (is (:hard? v)))))
+
+(deftest a-non-numeric-guest-count-does-not-crash-the-governor
+  (testing "it used to reach `+` and throw a ClassCastException out of the
+            governor itself"
+    (let [db (store/seed-db)
+          p (llm/infer db (assoc (clean-booking) :op :booking/place :guests-count "2"))
+          v (policy/check {:op :booking/place} coordinator p db)]
+      (is (contains? (rules v) :capacity-overbooking-gate)))))
+
+(deftest a-property-with-no-recorded-capacity-blocks-rather-than-skips
+  (let [db (store/seed-db)]
+    (store/with-properties db (update-in (:properties (store/demo-data))
+                                         ["prop-100"] dissoc :capacity-total))
+    (let [p (llm/infer db (assoc (clean-booking) :op :booking/place))
+          v (policy/check {:op :booking/place} coordinator p db)]
+      (is (contains? (rules v) :capacity-overbooking-gate)
+          "no capacity to compare against is un-verifiable, not free"))))
+
+(deftest an-existing-booking-with-an-unusable-count-blocks-rather-than-being-skipped
+  (testing "silently dropping it from the sum would understate current occupancy"
+    (let [db (store/seed-db)]
+      (store/with-bookings db (assoc-in (:bookings (store/demo-data))
+                                        ["bk-1" :guests-count] "15"))
+      ;; bk-1 runs 2026-08-01..05, so the new booking must OVERLAP it for the
+      ;; existing-occupancy path to be reached at all
+      (let [p (llm/infer db (assoc (clean-booking :check-in "2026-08-02" :check-out "2026-08-04")
+                                   :op :booking/place))
+            v (policy/check {:op :booking/place} coordinator p db)]
+        (is (contains? (rules v) :capacity-overbooking-gate))))))
+
+(deftest a-clean-in-capacity-booking-still-passes
+  (let [db (store/seed-db)
+        p (llm/infer db (assoc (clean-booking) :op :booking/place :guests-count 2))
+        v (policy/check {:op :booking/place} coordinator p db)]
+    (is (not (contains? (rules v) :capacity-overbooking-gate))
+        "the gate is not simply always-on")))
