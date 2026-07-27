@@ -82,6 +82,25 @@
        (< 0 (compare check-out-b check-in-a))))
 
 (defn- capacity-violations
+  "The property's total capacity against every confirmed booking whose
+  dates overlap this one.
+
+  Three ways this used to pass a booking it could not actually verify,
+  all the same mistake -- mapping `cannot determine` onto `safe`:
+
+    - `(or guests-count 0)` meant a booking with NO guest count
+      contributed ZERO to the occupancy and therefore always cleared
+      the capacity gate;
+    - a non-numeric guest count reached `+` and threw a
+      ClassCastException out of the governor itself;
+    - `(when (and cap ...))` skipped the check entirely when the
+      property had no recorded `:capacity-total`.
+
+  A count that is not a number cannot be added to the occupancy, and a
+  property with no recorded capacity has nothing to compare against, so
+  in both cases the check cannot be performed -- which is a violation,
+  not a pass and not a crash. Existing bookings carrying a non-numeric
+  count are likewise counted as unverifiable rather than skipped."
   [{:keys [op]} proposal st]
   (when (= op :booking/place)
     (let [{:keys [id property-id check-in check-out guests-count]} (:value proposal)
@@ -92,12 +111,29 @@
                (filter #(= :confirmed (:status %)))
                (remove #(= id (:id %)))
                (filter #(overlaps? check-in check-out (:check-in %) (:check-out %))))
-          occupied (reduce + 0 (map :guests-count overlapping-others))
-          total    (+ occupied (or guests-count 0))]
-      (when (and cap (> total cap))
+          bad-existing (remove #(number? (:guests-count %)) overlapping-others)
+          occupied (reduce + 0 (map :guests-count (filter #(number? (:guests-count %))
+                                                          overlapping-others)))]
+      (cond
+        (not (number? cap))
+        [{:rule :capacity-overbooking-gate
+          :detail (str "property=" property-id " に capacity-total が無い(" (pr-str cap) ") -- "
+                       "空室数を検算できないため受け付けない")}]
+
+        (not (number? guests-count))
+        [{:rule :capacity-overbooking-gate
+          :detail (str "guests-count が数値でない(" (pr-str guests-count) ") -- "
+                       "占有数に加算できないため検算できない")}]
+
+        (seq bad-existing)
+        [{:rule :capacity-overbooking-gate
+          :detail (str "重複日程の既存予約 " (:id (first bad-existing))
+                       " の guests-count が数値でない -- 現占有数を確定できない")}]
+
+        (> (+ occupied guests-count) cap)
         [{:rule :capacity-overbooking-gate
           :detail (str "重複日程の占有が総capacityを超過: property=" property-id
-                       " occupied+new=" total " > capacity=" cap)}]))))
+                       " occupied+new=" (+ occupied guests-count) " > capacity=" cap)}]))))
 
 (defn- license-lapsed-violations
   [{:keys [op]} proposal st]
