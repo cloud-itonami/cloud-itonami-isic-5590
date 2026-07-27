@@ -45,7 +45,8 @@ request + injected role/tenant/phase context
    ┌───────────────┐    proposal      ┌───────────────────────┐
    │ StayBooking-LLM│ ───────────────▶│ StayGovernor           │  (independent system)
    │ (sealed)       │  draft + source │  capacity · license ·  │
-   └───────────────┘   citation       │  provenance · human    │
+   └───────────────┘   citation       │  provenance · RATE ·   │
+                                       │  human                 │
                                        └───────────────────────┘
                                               │
                                    commit / confirm only if allowed
@@ -55,6 +56,26 @@ request + injected role/tenant/phase context
 
 **Single invariant**: StayBooking-LLM never registers, confirms, or
 resolves a dispute the StayGovernor would reject.
+
+### The rate gate recomputes; it does not take the advisor's word
+
+A booking is where money attaches to a stay. Until the rate gate existed
+a booking could be placed carrying **no price at all**, or any price the
+advisor felt like stating — nothing checked.
+
+`rate-recompute-violations` re-runs
+[`kotoba.reservation`](https://github.com/kotoba-lang/reservation)
+against the property's own filed rate plan and rejects a claimed total
+that does not match. The nights come from `nights-between` applied to
+the booking's **own check-in and check-out**, so a proposal cannot
+smuggle in a shortened night list to make a cheap total look right.
+
+It is a ground-truth recompute, not a restatement, and a check that
+**cannot** be performed — no filed rate plan, no claimed total, a
+zero-night or reversed date range — is itself a HARD violation. The
+governor does not assume a price is right when it is structurally unable
+to verify it. `kotoba.reservation` is integer-only (minor units, basis
+points) so the recompute is bit-identical to the advisor's.
 
 ## Run
 

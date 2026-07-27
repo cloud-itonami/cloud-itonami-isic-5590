@@ -24,7 +24,8 @@
      :value      map|nil        ; the record patch, for register/place/dispute
      :columns    [kw ..]|nil    ; proposed disclosure column set
      :confidence 0..1}"
-  (:require #?(:clj  [clojure.edn :as edn]
+  (:require [kotoba.reservation :as res]
+            #?(:clj  [clojure.edn :as edn]
                :cljs [cljs.reader :as edn])
             [clojure.string :as str]
             [langchain.model :as model]
@@ -49,23 +50,48 @@
                  :license-basis src :safety-cert-expiry safety-cert-expiry}
      :confidence (if unsourced? 0.9 0.95)}))
 
+(defn quoted-total
+  "The total a stay of `check-in`..`check-out` costs under the property's
+  own filed rate plan, or nil when it cannot be priced.
+
+  The nights come from `kotoba.reservation/nights-between` applied to the
+  booking's OWN dates -- never from a night list supplied alongside the
+  proposal, which an advisor could shorten to make a cheap total look
+  right. `stay.policy` calls this same function on the same ground truth
+  to check the claim."
+  [prop {:keys [check-in check-out guests-count]}]
+  (let [plan (:rate-plan prop)
+        nights (res/nights-between check-in check-out)]
+    (when (and plan (seq nights))
+      (res/quote-total (res/quote-for plan {:dates nights :qty (or guests-count 1)})))))
+
 (defn- propose-place
   "Booking normalization — the LLM only normalizes/validates the incoming
   request. `:unsourced?` injects the same class of failure as
   `propose-register`: a booking arriving with no channel citation at all
   (a dropped OTA webhook header) — the source-provenance-gate must reject
   it regardless of confidence."
-  [_db {:keys [id property-id guest-id check-in check-out guests-count source unsourced?]}]
-  (let [src (when-not unsourced? source)]
+  [db {:keys [id property-id guest-id check-in check-out guests-count source
+              unsourced? mispriced?]}]
+  (let [src (when-not unsourced? source)
+        prop (store/property db property-id)
+        total (quoted-total prop {:check-in check-in :check-out check-out
+                                  :guests-count guests-count})
+        ;; `mispriced?` states a total this advisor did not compute -- the
+        ;; failure mode `stay.policy`'s rate-recompute gate exists to catch,
+        ;; and the same injection idiom `unsourced?`/`greedy?` already use.
+        claimed (if mispriced? 1 total)]
     {:summary   (str "booking place: " property-id " " check-in ".." check-out
                      " x" guests-count)
      :rationale "出典引用済み予約チャネルの正規化のみ。"
      :cites     [:property-id :guest-id :check-in :check-out :guests-count]
      :source    src
      :effect    :booking-upsert
-     :value     {:id id :property-id property-id :guest-id guest-id
-                 :check-in check-in :check-out check-out :guests-count guests-count
-                 :status :confirmed :source src}
+     :value     (cond-> {:id id :property-id property-id :guest-id guest-id
+                         :check-in check-in :check-out check-out :guests-count guests-count
+                         :status :confirmed :source src}
+                  claimed (assoc :quoted-total claimed
+                                 :currency (:rate/currency (:rate-plan prop))))
      :confidence (if unsourced? 0.9 0.95)}))
 
 (defn- propose-report

@@ -43,6 +43,7 @@
                                   auto-resolves, at any confidence, any
                                   phase."
   (:require [clojure.set :as set]
+            [kotoba.reservation :as res]
             [stay.facts :as facts]
             [stay.store :as store]))
 
@@ -146,6 +147,48 @@
             [{:rule :licensed-disclosure
               :detail (str "契約 tier " (:tier c) " に対し過剰な列: " (vec extra))}]))))))
 
+(defn- rate-recompute-violations
+  "RECOMPUTE the booking's total from the property's own filed rate plan
+  and reject a claimed total that does not match.
+
+  A booking is the point where money attaches to a stay, and until this
+  gate existed a booking could be placed carrying no price at all, or
+  any price the advisor felt like stating. This is a ground-truth
+  recompute, not a restatement: the nights come from
+  `kotoba.reservation/nights-between` applied to the booking's OWN
+  check-in/check-out, so shortening a night list in the proposal cannot
+  make a wrong total pass.
+
+  A check that CANNOT be performed is a violation, not a pass. A
+  property with no filed rate plan, a booking with no claimed total, or
+  a date range that yields no nights is un-recomputable, and this
+  governor does not wave through a price it was structurally unable to
+  verify."
+  [{:keys [op]} proposal st]
+  (when (= op :booking/place)
+    (let [{:keys [property-id check-in check-out guests-count quoted-total]} (:value proposal)
+          prop (store/property st property-id)
+          plan (:rate-plan prop)
+          nights (res/nights-between check-in check-out)]
+      (cond
+        (nil? plan)
+        [{:rule :rate-recompute-gate
+          :detail (str "property=" property-id " に届出料金設定(rate plan)が無い -- 提示総額を独立に再計算できない")}]
+
+        (nil? quoted-total)
+        [{:rule :rate-recompute-gate
+          :detail "予約に :quoted-total が無い -- 価格の付かない予約は受け付けない"}]
+
+        (empty? nights)
+        [{:rule :rate-recompute-gate
+          :detail (str "check-in/check-out から宿泊数を確定できない: " check-in ".." check-out)}]
+
+        (not (res/quote-matches-claim? plan {:dates nights :qty (or guests-count 1)} quoted-total))
+        [{:rule :rate-mismatch-gate
+          :detail (str "提示総額 " quoted-total " は料金設定からの再計算結果 "
+                       (res/quote-total (res/quote-for plan {:dates nights :qty (or guests-count 1)}))
+                       " と一致しない(" (count nights) "泊 x " (or guests-count 1) "名)")}]))))
+
 (defn- guest-flagged?
   [{:keys [op]} proposal st]
   (when (= op :booking/place)
@@ -168,6 +211,7 @@
                       (concat (rbac-violations request context)
                               (capacity-violations request proposal st)
                               (license-lapsed-violations request proposal st)
+                              (rate-recompute-violations request proposal st)
                               (source-provenance-violations request proposal st)
                               (licensed-disclosure-violations request context proposal st)))
         conf     (:confidence proposal 0.0)
