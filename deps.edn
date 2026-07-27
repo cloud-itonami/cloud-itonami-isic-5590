@@ -5,6 +5,8 @@
  ;; ClojureScript → nbb runtime priority, CLAUDE.md).
  :deps {io.github.kotoba-lang/langgraph
         {:local/root "../../kotoba-lang/langgraph"}
+        io.github.kotoba-lang/reservation
+        {:local/root "../../kotoba-lang/reservation"}
         io.github.kotoba-lang/langchain-store
         {:local/root "../../kotoba-lang/langchain-store"}}
  :aliases

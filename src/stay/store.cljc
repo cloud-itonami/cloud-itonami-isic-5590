@@ -33,6 +33,7 @@
   immutable log."
   (:require [clojure.string :as str]
             [langchain.db :as d]
+            [kotoba.reservation :as res]
             [langchain-store.core :as ls]))
 
 (defprotocol Store
@@ -54,6 +55,19 @@
 
 ;; ───────────────────────── demo data (fictitious, non-real properties) ──
 
+(defn- nightly
+  "One filed nightly rate plan for a property -- `kotoba.reservation`
+  ground truth the StayGovernor recomputes a booking's quoted total
+  from. Amounts are integer minor units; modifiers integer basis
+  points."
+  [id base currency]
+  (res/rate-plan id :bed base currency
+                 :refundable? true
+                 :min-units 1
+                 :weekday-bp {5 11500 6 11500}      ; Fri/Sat +15%
+                 :fees [{:label "cleaning" :amount 1500}]
+                 :tax-bp 1000))
+
 (defn demo-data
   "A small, entirely fictitious dataset so the actor + tests run offline
   and no real property or person is ever named in this repository.
@@ -69,15 +83,18 @@
    {"prop-100" {:id "prop-100" :name "出島ホステル(デモ)" :property-type :hostel
                 :jurisdiction :jpn :capacity-total 20 :license-status :active
                 :license-basis {:class :jpn-ryokangyo-license :ref "ryokangyo:demo-100"}
-                :safety-cert-expiry "2027-06-01"}
+                :safety-cert-expiry "2027-06-01"
+                :rate-plan (nightly "rate-100" 4200 "JPY")}
     "prop-200" {:id "prop-200" :name "Northwind Guesthouse (demo)" :property-type :guesthouse
                 :jurisdiction :gbr :capacity-total 10 :license-status :active
                 :license-basis {:class :gbr-fire-safety-order-2005 :ref "fsa:demo-200"}
-                :safety-cert-expiry "2026-01-01"}
+                :safety-cert-expiry "2026-01-01"
+                :rate-plan (nightly "rate-200" 3800 "GBP")}
     "prop-300" {:id "prop-300" :name "Demo Worker Dormitory" :property-type :dormitory
                 :jurisdiction :usa :capacity-total 15 :license-status :active
                 :license-basis {:class :operator-attested-license :ref "lic-op-1"}
-                :safety-cert-expiry "2027-06-01"}}
+                :safety-cert-expiry "2027-06-01"
+                :rate-plan (nightly "rate-300" 5000 "USD")}}
    :bookings
    {"bk-1" {:id "bk-1" :property-id "prop-100" :guest-id "g-1"
             :check-in "2026-08-01" :check-out "2026-08-05" :guests-count 15
@@ -139,7 +156,7 @@
    :contract/tenant {:db/unique :db.unique/identity}
    :ledger/seq      {:db/unique :db.unique/identity}})
 
-(defn- property->tx [{:keys [id name property-type jurisdiction capacity-total
+(defn- property->tx [{:keys [id name property-type jurisdiction capacity-total rate-plan
                              license-status license-basis safety-cert-expiry]}]
   (cond-> {:property/id id}
     name              (assoc :property/name name)
@@ -148,6 +165,10 @@
     capacity-total    (assoc :property/capacity-total capacity-total)
     license-status    (assoc :property/license-status license-status)
     license-basis     (assoc :property/license-basis (ls/enc license-basis))
+    ;; a kotoba.reservation rate plan is a compound value -- stored as an
+    ;; EDN blob so langchain.db does not expand it into sub-entities and
+    ;; the integer-keyed :rate/weekday-bp map survives the round trip
+    rate-plan         (assoc :property/rate-plan (ls/enc rate-plan))
     safety-cert-expiry (assoc :property/safety-cert-expiry safety-cert-expiry)))
 
 (defn- pull->property [m]
@@ -155,26 +176,35 @@
     {:id (:property/id m) :name (:property/name m) :property-type (:property/type m)
      :jurisdiction (:property/jurisdiction m) :capacity-total (:property/capacity-total m)
      :license-status (:property/license-status m) :license-basis (ls/dec* (:property/license-basis m))
+     :rate-plan (ls/dec* (:property/rate-plan m))
      :safety-cert-expiry (:property/safety-cert-expiry m)}))
 
 (def ^:private property-pull
   [:property/id :property/name :property/type :property/jurisdiction :property/capacity-total
-   :property/license-status :property/license-basis :property/safety-cert-expiry])
+   :property/license-status :property/license-basis :property/safety-cert-expiry
+   :property/rate-plan])
 
-(defn- booking->tx [{:keys [id property-id guest-id check-in check-out guests-count status source]}]
-  {:booking/id id :booking/property-id property-id :booking/guest-id guest-id
-   :booking/check-in check-in :booking/check-out check-out :booking/guests-count guests-count
-   :booking/status status :booking/source (ls/enc source)})
+(defn- booking->tx [{:keys [id property-id guest-id check-in check-out guests-count status source
+                            quoted-total currency]}]
+  (cond-> {:booking/id id :booking/property-id property-id :booking/guest-id guest-id
+           :booking/check-in check-in :booking/check-out check-out :booking/guests-count guests-count
+           :booking/status status :booking/source (ls/enc source)}
+    ;; the total the StayGovernor recomputed and cleared -- persisted, not
+    ;; discarded, so an auditor can re-verify the price of a stay later
+    quoted-total (assoc :booking/quoted-total quoted-total)
+    currency     (assoc :booking/currency currency)))
 
 (defn- pull->booking [m]
   (when (:booking/id m)
     {:id (:booking/id m) :property-id (:booking/property-id m) :guest-id (:booking/guest-id m)
      :check-in (:booking/check-in m) :check-out (:booking/check-out m)
-     :guests-count (:booking/guests-count m) :status (:booking/status m) :source (ls/dec* (:booking/source m))}))
+     :guests-count (:booking/guests-count m) :status (:booking/status m) :source (ls/dec* (:booking/source m))
+     :quoted-total (:booking/quoted-total m) :currency (:booking/currency m)}))
 
 (def ^:private booking-pull
   [:booking/id :booking/property-id :booking/guest-id :booking/check-in :booking/check-out
-   :booking/guests-count :booking/status :booking/source])
+   :booking/guests-count :booking/status :booking/source
+   :booking/quoted-total :booking/currency])
 
 (defn- guest->tx [{:keys [id name flagged? flag-reason]}]
   (cond-> {:guest/id id}
