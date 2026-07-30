@@ -42,6 +42,10 @@ jobs:
           path: orgs/kotoba-lang/langgraph
       - uses: actions/checkout@v4
         with:
+          repository: kotoba-lang/reservation
+          path: orgs/kotoba-lang/reservation
+      - uses: actions/checkout@v4
+        with:
           repository: kotoba-lang/langchain
           path: orgs/kotoba-lang/langchain
       - uses: actions/checkout@v4
