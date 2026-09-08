@@ -31,7 +31,7 @@
   The ledger stays append-only on every backend — 'who booked/registered/
   disputed what, on what license/source basis' is always a query over an
   immutable log."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [langchain.db :as d]
             [kotoba.reservation :as res]
             [langchain-store.core :as ls]))
