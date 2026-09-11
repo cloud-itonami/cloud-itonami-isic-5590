@@ -31,7 +31,7 @@ This actor **registers properties, confirms bookings and serves governed
 reports**. It never captures a payment, executes a refund, or issues a
 physical door/key-code credential — there is no field anywhere in this
 schema for those (see `docs/adr/0001-architecture.md`). Every registration
-must cite a real license basis (`src/stay/facts.cljc`: Japan 旅館業法, UK
+must cite a real license basis (`src/stay/facts.cljk`: Japan 旅館業法, UK
 Fire Safety Order 2005) or an operator-registered `:operator-attested-
 license`; every booking must cite a real channel (direct desk or
 OTA-partner) — never a bare "the LLM inferred it".

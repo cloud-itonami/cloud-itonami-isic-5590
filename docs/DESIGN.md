@@ -31,9 +31,9 @@ StaySystem (root supervisor)
 ├── BookingActor ……… 予約リクエストの正規化・取込(:booking/place)
 │
 ├── OperationActor[op] … ★ 1操作 = 1 actor run; StayBooking-LLM 封じ込め ★
-│     ├── StayBooking-LLM (sealed)  proposal only(src/stay/llm.cljc)
-│     ├── StayGovernor             INDEPENDENT ゲート(src/stay/policy.cljc)
-│     ├── Committer                 SSoT/台帳への書き込み(src/stay/store.cljc)
+│     ├── StayBooking-LLM (sealed)  proposal only(src/stay/llm.cljk)
+│     ├── StayGovernor             INDEPENDENT ゲート(src/stay/policy.cljk)
+│     ├── Committer                 SSoT/台帳への書き込み(src/stay/store.cljk)
 │     └── Recorder                   監査台帳(append-only)
 │
 ├── ReviewActor ……… 人間レビュー(要注意フラグ・紛争申立ての interrupt を受ける)
@@ -51,7 +51,7 @@ StaySystem (root supervisor)
 
 ## 3. OperationActor 内部(StayBooking-LLM ラッパー)
 
-`src/stay/operation.cljc` の langgraph-clj StateGraph として実装。
+`src/stay/operation.cljk` の langgraph-clj StateGraph として実装。
 **1 run = 1 操作** — 有界で監査可能、無限内部ループを持たない。
 
 ```
@@ -73,7 +73,7 @@ intake → advise → govern → decide ─┬─ commit ───────�
 
 ## 4. StayGovernor(独立検閲層)
 
-`src/stay/policy.cljc`。8チェック(5 HARD + 3 SOFT)、優先順位:
+`src/stay/policy.cljk`。8チェック(5 HARD + 3 SOFT)、優先順位:
 
 1. **rbac** — actor-role が operation の権限を持つか。
 2. **capacity-overbooking-gate**(新規、業態固有) — `:booking/place` の
@@ -96,14 +96,14 @@ intake → advise → govern → decide ─┬─ commit ───────�
 
 ## 5. SSoT と監査台帳
 
-`src/stay/store.cljc`。entities: `properties`(license-status/
+`src/stay/store.cljk`。entities: `properties`(license-status/
 safety-cert-expiry含む) `bookings`(capacity-overbooking-gate の対象)
 `guests`(flagged?) `licenses`(operator-attested-license の裏付け)
 `contracts`(partner licensing)。ledger は append-only。
 
 ## 6. デモ(`clojure -M:dev:run`)
 
-`src/stay/sim.cljc` が7操作を actor に通す(§sim.cljc docstring 参照):
+`src/stay/sim.cljk` が7操作を actor に通す(§sim.cljc docstring 参照):
 正当な施設登録 → commit、出典なし予約 → hold、tier超過/未契約の開示 →
 hold ×2、ライセンス失効施設への予約 → hold、収容人数超過予約 → hold、
 要注意フラグ付きゲストの予約 → 人間承認 → commit、紛争申立て → 常に
@@ -111,9 +111,9 @@ hold ×2、ライセンス失効施設への予約 → hold、収容人数超過
 
 ## 7. テスト(`clojure -M:dev:test`)
 
-`test/stay/policy_contract_test.clj` が**ガバナンス契約を実行可能**にする。
-`test/stay/phase_test.clj` が段階導入と「紛争は恒久的に人間専用」を保証。
-`test/stay/facts_test.clj` が出典カタログ自体の正直さ(捏造禁止)を保証。
+`test/stay/policy_contract_test.cljk` が**ガバナンス契約を実行可能**にする。
+`test/stay/phase_test.cljk` が段階導入と「紛争は恒久的に人間専用」を保証。
+`test/stay/facts_test.cljk` が出典カタログ自体の正直さ(捏造禁止)を保証。
 
 ## 8. 実装と業態の対応
 

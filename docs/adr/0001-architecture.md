@@ -42,7 +42,7 @@ cloud-itonami actor に存在しない業態固有の HARD チェックとして
 
 ### 4. R0 の正直なスコープ(捏造禁止)
 
-出典カタログ(`src/stay/facts.cljc`)は実在する2つの statutory 制度(日本
+出典カタログ(`src/stay/facts.cljk`)は実在する2つの statutory 制度(日本
 旅館業法・英国 Fire Safety Order 2005)+ 1つの構造的クラス
 `:operator-attested-license`(他法域は operator 登録の実ライセンスのみ受理)
 + 2つの実在 booking channel クラス。
