@@ -57,7 +57,7 @@ cloud-itonami actor に存在しない業態固有の HARD チェックとして
 - (+) `kotoba-lang/industry` registry の 5590 スロットが実装へ昇格。
 - (+) capacity-overbooking-gate という、実際の日程重複・人数算術を伴う、
   他の cloud-itonami actor に存在しないチェックを新設した。
-- (+) `clojure -M:dev:test`/`clojure -M:lint`/`clojure -M:dev:run` を
+- (+) `kbb -M:dev:test`/`kbb -M:lint`/`kbb -M:dev:run` を
   ローカルで実行し合格を確認済み(詳細は superproject ADR の Consequences
   節)。
 - (-) R0 のライセンス regime は2法域のみ。他法域は operator の

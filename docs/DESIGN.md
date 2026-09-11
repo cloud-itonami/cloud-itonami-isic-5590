@@ -101,7 +101,7 @@ safety-cert-expiry含む) `bookings`(capacity-overbooking-gate の対象)
 `guests`(flagged?) `licenses`(operator-attested-license の裏付け)
 `contracts`(partner licensing)。ledger は append-only。
 
-## 6. デモ(`clojure -M:dev:run`)
+## 6. デモ(`kbb -M:dev:run`)
 
 `src/stay/sim.cljk` が7操作を actor に通す(§sim.cljc docstring 参照):
 正当な施設登録 → commit、出典なし予約 → hold、tier超過/未契約の開示 →
@@ -109,7 +109,7 @@ hold ×2、ライセンス失効施設への予約 → hold、収容人数超過
 要注意フラグ付きゲストの予約 → 人間承認 → commit、紛争申立て → 常に
 人間承認 → commit。
 
-## 7. テスト(`clojure -M:dev:test`)
+## 7. テスト(`kbb -M:dev:test`)
 
 `test/stay/policy_contract_test.cljk` が**ガバナンス契約を実行可能**にする。
 `test/stay/phase_test.cljk` が段階導入と「紛争は恒久的に人間専用」を保証。
