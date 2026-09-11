@@ -12,7 +12,7 @@
     op6  要注意フラグ付きゲストの予約(出典・容量は正常)    → 人間承認へ escalate → approve → commit
     op7  予約紛争申立て(どの phase でも常に人間レビュー)   → escalate → approve → commit
 
-  Run: clojure -M:dev:run"
+  Run: kbb -M:dev:run"
   (:require [langgraph.graph :as g]
             [stay.store :as store]
             [stay.operation :as op]
