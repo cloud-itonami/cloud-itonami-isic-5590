@@ -42,7 +42,7 @@
     8. dispute requests         — a booking/billing dispute NEVER
                                   auto-resolves, at any confidence, any
                                   phase."
-  (:require [clojure.set :as set]
+  (:require [kotoba.lang.coll :as set]
             [kotoba.reservation :as res]
             [stay.facts :as facts]
             [stay.store :as store]))
