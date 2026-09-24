@@ -3,7 +3,7 @@
   make the actor MORE conservative than the governor: hold writes that
   aren't enabled yet, force human approval before auto-commit is
   unlocked."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [langgraph.graph :as g]
             [stay.store :as store]
             [stay.operation :as op]))

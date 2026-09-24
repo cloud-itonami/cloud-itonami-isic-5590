@@ -7,7 +7,7 @@
   Every test therefore takes the same shape: make the proposal claim
   something false, and assert the governor catches it by recomputing
   from the property's own filed rate plan and the booking's own dates."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [langgraph.graph :as g]
             [kotoba.reservation :as res]
             [stay.llm :as llm]
