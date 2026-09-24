@@ -7,7 +7,7 @@
     StayBooking-LLM never registers/confirms/resolves a record the
     StayGovernor would reject, and every decision (commit OR hold) leaves
     exactly one ledger fact."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [langgraph.graph :as g]
             [stay.store :as store]
             [stay.operation :as op]))
